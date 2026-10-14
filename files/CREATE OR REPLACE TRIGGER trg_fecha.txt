@@ -1,0 +1,364 @@
+CREATE OR REPLACE TRIGGER trg_fecha_docente
+BEFORE INSERT ON DOCENTE
+FOR EACH ROW
+BEGIN
+    :NEW.fecha_registro := SYSDATE;
+END;
+
+
+INSERT INTO DOCENTE (docente_id,nombre,departamento,correo)
+VALUES (6,'Ana Torres','Matematicas','ana@uni.edu');
+
+SELECT * FROM DOCENTE;
+
+
+------------------------------------------------------2-----------------------------------------
+
+CREATE OR REPLACE TRIGGER trg_delete_materia
+BEFORE DELETE ON MATERIA
+FOR EACH ROW
+DECLARE
+    v_total NUMBER;
+BEGIN
+    SELECT COUNT(*)
+    INTO v_total
+    FROM INSCRIPCION
+    WHERE materia_id=:OLD.materia_id;
+
+    IF v_total>0 THEN
+        RAISE_APPLICATION_ERROR(-20002,'La materia tiene inscripciones.');
+    END IF;
+END;
+/
+
+DELETE FROM MATERIA WHERE materia_id=1;
+
+
+------------------------------------3---------------------
+CREATE OR REPLACE TRIGGER trg_validar_nota
+BEFORE INSERT OR UPDATE ON INSCRIPCION
+FOR EACH ROW
+BEGIN
+    IF :NEW.nota>100 THEN
+        RAISE_APPLICATION_ERROR(-20003,'La nota no puede ser mayor a 100');
+    END IF;
+END;
+/
+
+
+INSERT INTO INSCRIPCION
+VALUES(1,1,1,SYSDATE,120);
+
+
+
+----------------------------------------4-------------------------------------------
+
+CREATE OR REPLACE TRIGGER trg_fecha_inscripcion
+BEFORE INSERT ON INSCRIPCION
+FOR EACH ROW
+BEGIN
+    :NEW.fecha_inscripcion:=SYSDATE;
+END;
+/
+INSERT INTO INSCRIPCION
+(inscripcion_id,estudiante_id,materia_id,nota)
+VALUES(2,1,1,80);
+
+
+
+-----------------------------------5----------------------------------
+CREATE OR REPLACE TRIGGER trg_insert_materia
+AFTER INSERT ON MATERIA
+FOR EACH ROW
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('Materia insertada: '||:NEW.nombre);
+END;
+
+
+
+
+INSERT INTO MATERIA
+VALUES(7,'Base de Datos',5,1);
+
+
+-----------------------------------7-----------------------------------------
+
+CREATE OR REPLACE TRIGGER trg_carrera
+BEFORE INSERT ON ESTUDIANTE
+FOR EACH ROW
+BEGIN
+    IF :NEW.carrera IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20004,'Debe registrar una carrera.');
+    END IF;
+END;
+
+INSERT INTO ESTUDIANTE
+VALUES(1,'Carlos',NULL,'carlos@mail.com');
+
+--------------------------------------8-------------------------------------------
+
+CREATE TABLE AUDITORIA_NOTAS(
+nota_anterior NUMBER,
+nota_nueva NUMBER,
+fecha DATE
+);
+
+CREATE OR REPLACE TRIGGER trg_auditoria_notas
+AFTER UPDATE OF nota ON INSCRIPCION
+FOR EACH ROW
+BEGIN
+    INSERT INTO AUDITORIA_NOTAS
+    VALUES(:OLD.nota,:NEW.nota,SYSDATE);
+END;
+/
+
+
+UPDATE INSCRIPCION
+SET nota=95
+WHERE inscripcion_id=2;
+
+SELECT * FROM AUDITORIA_NOTAS;
+
+-------------------------------------9-------------------------------------------
+
+CREATE OR REPLACE TRIGGER trg_limite_materias
+BEFORE INSERT ON MATERIA
+FOR EACH ROW
+DECLARE
+v_total NUMBER;
+BEGIN
+SELECT COUNT(*)
+INTO v_total
+FROM MATERIA
+WHERE docente_id=:NEW.docente_id;
+
+IF v_total>=5 THEN
+RAISE_APPLICATION_ERROR(-20006,'Máximo 5 materias.');
+END IF;
+END;
+/
+
+INSERT INTO MATERIA VALUES (9,'Ingenieria de Software',5,1);
+
+
+----------------------------------------10----------------------------------------
+CREATE OR REPLACE TRIGGER trg_email_estudiante
+BEFORE INSERT OR UPDATE ON ESTUDIANTE
+FOR EACH ROW
+BEGIN
+IF :NEW.correo NOT LIKE '%@%.%' THEN
+RAISE_APPLICATION_ERROR(-20007,'Correo inválido.');
+END IF;
+END;
+/
+
+INSERT INTO ESTUDIANTE
+VALUES(3,'Maria','Informatica','mariagmail.com');
+
+----------------------------------------11-------------------------------------------
+CREATE OR REPLACE TRIGGER trg_delete_estudiante
+BEFORE DELETE ON ESTUDIANTE
+FOR EACH ROW
+DECLARE
+v_total NUMBER;
+BEGIN
+SELECT COUNT(*)
+INTO v_total
+FROM INSCRIPCION
+WHERE estudiante_id=:OLD.estudiante_id;
+
+IF v_total>0 THEN
+RAISE_APPLICATION_ERROR(-20008,'Tiene inscripciones.');
+END IF;
+END;
+/
+
+
+DELETE FROM ESTUDIANTE
+WHERE estudiante_id=1;
+
+
+----------------------------------------------------12-------------------------------------------
+CREATE OR REPLACE TRIGGER trg_nombre_materia
+BEFORE INSERT ON MATERIA
+FOR EACH ROW
+BEGIN
+IF :NEW.nombre IS NULL THEN
+RAISE_APPLICATION_ERROR(-20009,'Debe ingresar un nombre.');
+END IF;
+END;
+/
+
+
+INSERT INTO MATERIA
+VALUES(20,NULL,4,1);
+
+
+
+----------------13-----------------------------------
+CREATE TABLE AUDITORIA_DOCENTE(
+docente_id NUMBER,
+nombre VARCHAR2(100),
+fecha DATE
+);
+
+CREATE OR REPLACE TRIGGER trg_delete_docente
+AFTER DELETE ON DOCENTE
+FOR EACH ROW
+BEGIN
+INSERT INTO AUDITORIA_DOCENTE
+VALUES(:OLD.docente_id,:OLD.nombre,SYSDATE);
+END;
+/
+
+
+
+
+INSERT INTO DOCENTE (docente_id, nombre, departamento, correo) VALUES (8, 'Andrés Soto', 'Educación', 
+'andres.soto@uni.edu'); 
+DELETE FROM DOCENTE
+WHERE docente_id=8;
+
+SELECT * FROM AUDITORIA_DOCENTE;
+
+-------------------------------------------------------------------14--------------------------------------
+
+CREATE OR REPLACE TRIGGER trg_nota_negativa
+BEFORE INSERT OR UPDATE ON INSCRIPCION
+FOR EACH ROW
+BEGIN
+IF :NEW.nota<0 THEN
+RAISE_APPLICATION_ERROR(-20010,'La nota no puede ser negativa.');
+END IF;
+END;
+
+INSERT INTO INSCRIPCION
+VALUES(30,1,1,SYSDATE,-10);
+-------------------------------------------------15--------------------------------------------------
+
+
+CREATE OR REPLACE TRIGGER trg_no_cambiar_carrera
+BEFORE UPDATE OF carrera ON ESTUDIANTE
+FOR EACH ROW
+BEGIN
+RAISE_APPLICATION_ERROR(-20011,'No puede modificar la carrera.');
+END;
+/
+
+UPDATE ESTUDIANTE
+SET carrera='Medicina'
+WHERE estudiante_id=1;
+
+
+
+-----------------------------------------------16-------------------------------------------
+CREATE OR REPLACE TRIGGER trg_correo_unico
+BEFORE INSERT OR UPDATE ON DOCENTE
+FOR EACH ROW
+DECLARE
+v_total NUMBER;
+BEGIN
+SELECT COUNT(*)
+INTO v_total
+FROM DOCENTE
+WHERE correo=:NEW.correo
+AND docente_id<>NVL(:NEW.docente_id,0);
+
+IF v_total>0 THEN
+RAISE_APPLICATION_ERROR(-20012,'Correo duplicado.');
+END IF;
+END;
+/
+
+INSERT INTO DOCENTE (docente_id, nombre, departamento, correo) VALUES (1, 'Miguel Romero', 
+'Sociología', 'miguel.romero@uni.edu'); 
+
+---------------------------------------17----------------------------------------------------
+
+CREATE TABLE AUDITORIA_CARRERA(
+estudiante_id NUMBER,
+carrera_anterior VARCHAR2(100),
+carrera_nueva VARCHAR2(100),
+fecha DATE
+);
+
+CREATE OR REPLACE TRIGGER trg_cambio_carrera
+AFTER UPDATE OF carrera ON ESTUDIANTE
+FOR EACH ROW
+BEGIN
+INSERT INTO AUDITORIA_CARRERA
+VALUES(:OLD.estudiante_id,:OLD.carrera,:NEW.carrera,SYSDATE);
+END;
+/
+
+
+UPDATE ESTUDIANTE
+SET carrera='Ingenieria de Sistemas'
+WHERE estudiante_id=2;
+
+SELECT * FROM AUDITORIA_CARRERA;
+
+
+------quitar un triger no cambiar carrera-------------
+
+
+--------------------------------------18+-----------------------------------------------------
+ALTER TABLE INSCRIPCION ADD hora_registro DATE;
+
+CREATE OR REPLACE TRIGGER trg_hora
+BEFORE INSERT ON INSCRIPCION
+FOR EACH ROW
+BEGIN
+:NEW.hora_registro:=SYSDATE;
+END;
+/
+
+INSERT INTO INSCRIPCION
+(inscripcion_id,estudiante_id,materia_id,nota)
+VALUES(40,2,2,85);
+
+SELECT * FROM INSCRIPCION;
+
+
+-----------------------------------------19-----------------------------------------------------
+
+CREATE OR REPLACE TRIGGER trg_creditos
+BEFORE INSERT OR UPDATE ON MATERIA
+FOR EACH ROW
+BEGIN
+IF :NEW.creditos<1 OR :NEW.creditos>5 THEN
+RAISE_APPLICATION_ERROR(-20013,'Créditos entre 1 y 5.');
+END IF;
+END;
+/
+
+
+
+
+INSERT INTO MATERIA
+VALUES(31,'Fisica',8,1);
+
+
+-----------------------------------------20-------------------------------------------------------------
+CREATE OR REPLACE TRIGGER trg_inscripcion_unica
+BEFORE INSERT ON INSCRIPCION
+FOR EACH ROW
+DECLARE
+v_total NUMBER;
+BEGIN
+SELECT COUNT(*)
+INTO v_total
+FROM INSCRIPCION
+WHERE estudiante_id=:NEW.estudiante_id
+AND materia_id=:NEW.materia_id;
+
+IF v_total>0 THEN
+RAISE_APPLICATION_ERROR(-20014,'Inscripción duplicada.');
+END IF;
+END;
+
+INSERT INTO INSCRIPCION
+(inscripcion_id, estudiante_id, materia_id, fecha_inscripcion, nota)
+VALUES
+(50, 2, 2, SYSDATE, 90);
+
